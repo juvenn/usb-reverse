@@ -1,0 +1,285 @@
+
+"Reverse engineering Windows USB device drivers for the purpose of
+creating compatible device drivers for Linux"
+
+http://www.toth.demon.co.uk/usb/reverse-0.2.txt
+
+Version  : 0.2
+Author   : steve@toth.demon.co.uk
+
+
+PURPOSE
+*******
+
+The Author has written this document to help promote Linux
+USB device driver development. It's aimed at first time (newbie)
+developers and tries to highlight obvious development issues
+and tries to highlight key issues and problem areas.
+
+FEEDBACK
+********
+
+The author welcomes any feedback. If you feel this document is
+missing something, just say it. If you're unsure of something,
+just ask.
+
+TODO
+****
+
+Convert this document into a formal HOWTO.
+Walkthough the skeleton driver, describing the contents etc.
+
+DISCLAIMER
+**********
+
+The process of reverse engineering device drivers by capturing the
+data, creating new software and re-applying that data may or may
+not be illegal in your country. Copyright theft is a broad subject
+and the legal status varies from country to country. Consult your
+legal councellor. This document is not a guide to "ripping off
+commercial software companies" or "depriving copyright owners of
+their royalties". Be sensible, don't rip off firmware or intellectual
+ideas or concepts. The author is not liable for any actions or work
+produced as a result of this document.
+
+COPYRIGHT LAW
+*************
+
+TODO, try:
+http://www.lgu.com/publications/softcopy/index.shtml
+
+ONLINE RESOURCES
+****************
+
+If you do nothing else, you'll need these:
+
+oops diags	http://www-miaif.lip6.fr/willy/kmsgdump//
+A patch called kmsgdump can be applied to your kernel to
+record oops messages to floppy for later diagnosis. This is
+usefull stuff when you're drivers starts crashing and taking
+your kernel down with it. Recommend you install it and
+learn how to use it.
+
+linux docs	http://usb.cs.tum.edu/download/usbdoc/
+This example the basic infrastructure in Linux for writing drivers.
+It should be read hand-in-hand with the formal USB SPECIFICATION.
+
+usb specs	http://www.usb.org/developers/data/usb_20.zip
+The formal specification of the Universal Serial Bus v2.0. Chapters
+five and nine are most helpfull.
+
+sniffer		http://home.jps.net/~koma/sniffusb/sniffusb-0.13.zip
+A program to sit inbetween a windows OS and the USB driver. It
+records all packets.
+
+spike		http://www.aracnet.com/~seagull/NJB/tools/
+A perl program to translate the output of the sniffer into a more
+readable form. Read the primer document for details of how
+to read the output.
+
+usbview		http://www.kroah.com/linux-usb/
+A handy utility (shipped with RH7.2 by default) to show the
+standard configuration of ANY USB device connected to linux. You
+need CONFIG_USB_DEVICEFS=y compiled into your kernel for this to work.
+
+usb-skeleton.c	/usr/src/linux/drivers/usb/usb-skeleton.c
+A skeleton structure of a USB device driver for linux. This shows
+the interaction between a generic device driver and the kernel.
+
+You should also check http://www.linux-usb.org for other reference
+documents and links to the development mailing lists etc.
+
+ASSUMPTIONS
+***********
+
+1. You've got a stable windows platform (preferably win2k - although win98 should work),
+and the device your writing the driver for is connected and is functioning properly.
+2. You've downloaded all the software and documents above.
+3. You've read the Linux USB Programming guide (highlevel skim)
+4. You've read the Linux 2.0 Specification (highlevel skim)
+
+
+INSTALLING
+**********
+
+Install sniffusb by unzipping it into a directory, copying the UsbSnoop.sys file
+into \\windows\system32\drivers (or whatever it's called on you box), run
+SniffUSB.exe and select your USB device, choose install then reboot the system.
+
+Once restarted, the DBGVIEW.EXE tool will collect all debugging events from the sniffer
+and show you any packets sent to/from the device. You can use this tool to save the
+contents as a txt log file.
+
+It's worth noting that performance will suffer while you're sniffing the device. If 
+the device your debugging is time sensitive then these delays may affect the normal
+operations. Beware. My experience with webcams says that this wasn't a problem.
+
+
+DATA CAPTURE
+************
+
+Start your USB application, use the device for a few seconds, then
+stop the application. Save the log file and ftp it to your Linux box.
+
+On you Linux box us "spike" to interpret the logfile.
+
+$ cat test.log | spike
+
+After a little tidying up, you should get output something like this:
+
+000002	CS        40 00 20 00 12 81 00 00	
+000003	CS        40 00 0f 00 02 84 00 00	
+000004	CS        40 00 00 00 03 84 00 00	
+000005	CS        40 00 01 00 14 81 00 00	
+000006	CS        40 00 01 00 14 81 00 00	
+000007	CS        40 00 01 00 14 81 00 00	
+000008	CS        40 00 92 00 10 81 00 00	
+000009	CS        c0 00 00 00 21 86 01 00	C<  0000:  1f
+000010	CS        40 00 03 00 14 81 00 00	
+000011	CS        40 00 00 00 01 87 00 00	
+000012	CS        40 00 00 00 02 87 00 00	
+000013	CS        40 00 50 00 03 87 00 00	
+000014	CS        40 00 02 00 04 87 00 00	
+000015	CS        40 00 01 00 0c 87 00 00	
+000016	CS        c0 00 00 00 21 86 01 00	C<  0000:  00
+
+The SPIKE primer document describes the output. In summary, the output columns
+are, transaction count, transaction type, and data. So we're showing the
+output for transactions 2 thru 16, these are control transactions.
+
+The USB Specification chapter nine describes how to decode control packets but, in
+summary, the first byte is an 8 bit bitmap with each bit representing various
+flags to the USB subsystem. The bits range from left to right and are known
+as bit7,6,5,4,3,2,1,0.
+
+Bit 1 represents the direction of the control packet, where 0 = downstream (outbound)
+and 1 = upstream (inbound).
+
+Now we can see that transactions 2 thru 8 and 10 thru 15 are control messages out of the
+driver towards to USB device.
+
+By the same token, transactions 9 and 16 have bit 7 set to 1 so these control frames
+are incoming to the device driver from the USB device. You should examine the full
+sniffusb logfile to find out exactly how much data (if any) was transferred with each
+control message.
+
+For example, let's look at the full log message for transaction number 14.
+
+00000111  0.03535680  >>>>>>> URB 786 going down...
+00000112  0.03536880  -- URB_FUNCTION_VENDOR_DEVICE:
+00000113  0.03538320    TransferFlags          = 00000000 (USBD_TRANSFER_DIRECTION_OUT, ~USBD_SHORT_TRANSFER_OK)
+00000114  0.03539520    TransferBufferLength = 00000000
+00000115  0.03540480    TransferBuffer       = 00000000
+00000116  0.03541520    TransferBufferMDL    = 00000000
+00000117  0.03542400
+00000118  0.03543040      no data supplied
+00000119  0.03544080    UrbLink                 = 00000000
+00000120  0.03545120    RequestTypeReservedBits = 00
+00000121  0.03546160    Request                 = 00
+00000122  0.03547200    Value                   = 0001
+00000123  0.03548160    Index                   = 8114
+00000124  0.03776400
+00000125  0.03777040  <<<<<<< URB 786 coming back...
+00000126  0.03778480  -- URB_FUNCTION_CONTROL_TRANSFER:
+00000127  0.03779600    PipeHandle           = cc5dc70c
+00000128  0.03781040    TransferFlags        = 00000002 (USBD_TRANSFER_DIRECTION_OUT, USBD_SHORT_TRANSFER_OK)
+00000129  0.03782240    TransferBufferLength = 00000000
+00000130  0.03783280    TransferBuffer       = 00000000
+00000131  0.03784240    TransferBufferMDL    = 00000000
+00000132  0.03785360    UrbLink              = 00000000
+00000133  0.03787840    SetupPacket          : 40 00 01 00 14 81 00 00
+
+Line 111 also tells us the packet directioni (outbound/downstream).
+Line 115 is a pointer to a data transfer buffer (null - unused)
+Line 114 is the number of bytes to be transferred from the buffer with the request.
+Lines 120 thru 123 describe what parameters are being passed in the control message,
+      these are vendor specific and will be configuring the USB device.
+
+Lines 125 thru 113 simply indicate that the message was successfully received
+by the USB device. NOTE: the sniffusb program simply echoes the request in it's way
+back up the device driver. I have yet to see a control message fail via sniffusb.
+
+So what did this frame mean? It's hard to say but in summary, the device driver
+passed a command to the device. Command# was 8114 with a parameter value of 0001.
+
+Here's another trace for transaction number 9.
+
+00000211  0.06781040  >>>>>>> URB 790 going down...
+00000212  0.06782240  -- URB_FUNCTION_VENDOR_DEVICE:
+00000213  0.06783680    TransferFlags          = 00000001 (USBD_TRANSFER_DIRECTION_IN, ~USBD_SHORT_TRANSFER_OK)
+00000214  0.06784880    TransferBufferLength = 00000001
+00000215  0.06786000    TransferBuffer       = cc6a4d80
+00000216  0.06786960    TransferBufferMDL    = 00000000
+00000217  0.06788000    UrbLink                 = 00000000
+00000218  0.06789120    RequestTypeReservedBits = 00
+00000219  0.06790080    Request                 = 00
+00000220  0.06791200    Value                   = 0000
+00000221  0.06792160    Index                   = 8621
+00000222  0.07117280
+00000223  0.07117840  <<<<<<< URB 790 coming back...
+00000224  0.07119280  -- URB_FUNCTION_CONTROL_TRANSFER:
+00000225  0.07120400    PipeHandle           = cc5dc70c
+00000226  0.07121920    TransferFlags        = 00000003 (USBD_TRANSFER_DIRECTION_IN, USBD_SHORT_TRANSFER_OK) 
+00000227  0.07123040    TransferBufferLength = 00000001
+00000228  0.07124160    TransferBuffer       = cc6a4d80
+00000229  0.07125280    TransferBufferMDL    = cc6612b0
+00000230  0.07126240
+00000231  0.07126800      0000:
+00000232  0.07127840   1f
+00000233  0.07128880    UrbLink              = 00000000
+00000234  0.07131360    SetupPacket          : c0 00 00 00 21 86 01 00
+00000235  0.07139040  UsbSnoop - IRP_MJ_INTERNAL_DEVICE_CONTROL, IOCTL_INTERNAL_USB_SUBMIT_URB
+
+This is an inbound request for data from the device driver to the USB device. IE, the driver
+is asking the device to send 1 byte of data. You'll notice this logs reads a little strange.
+You'll notice that the request goes out with bit 7(1) (ie inbound), which was different
+from before where bit7(0) = outbound. You'd think that an outbound request for data
+would have bit7 = 0. Wrong. The bit indicates the direction of data flow just to confuse you.
+Check the specs for more info.
+
+In this case, the request for data went from the device driver to the USB device, the USB device
+then replied by sending 1 byte of data (1f) which was placed in our data buffer by the lower usb
+functions.
+
+How do these two requests translate into C? You'll need to read the USB Programming Guide
+for more information on the usb_control_msg function.
+
+// Example of a simplified downstream(outbound) control message
+ret=usb_control_msg(s->usbdev, usb_sndctrlpipe( s->usbdev, 0 )
+		 , 0x40, 0x00 , 0x0001, 0x8114, NULL, 0, HZ);
+if(ret < 0) {
+	err("icam_control_start, urb_control_msg(out) ret=%d",ret);
+	do something...
+}
+
+// Example of a simplified upstream(inbound) control message
+ret=usb_control_msg(s->usbdev, usb_rcvctrlpipe( s->usbdev, 0 )
+		, 0xc0, 0x00 , 0x0000, 0x8621, &buffer, 0x01, HZ);
+if(ret < 0) {
+	err("icam_control_start, urb_control_msg(in)  ret=%d",ret);
+	do something...
+}
+
+ISO/BULK TRANSFERS
+******************
+
+A number of other frames will probably appear in the sniffusb logfile.
+These are used for different kinds of bulk and time critical transfers between
+either the device or the driver. The type of transfer being used by the application
+depends on the nature of the USB device and how much bandwidth (and what priority)
+it gets on the USB bus. The specs give decribe the mechanisms (chapter 8) in more detail.
+
+
+YOUR FIRST LINES OF CODE
+************************
+
+You should probably base your driver on an existing Linux driver. IE, if you're developing
+a webcam driver, check the existing webcam drivers for how they buffer, control and deal with
+interrupts. You'll actually spend a large amount of time reading the source for many other
+drivers, don't be surprised at this. The USB internals of Linux are "pixie magic" and reading
+though existing stable code is a rare treat, you won't be able to live without it.
+
+On the flip side, you could use the formal usb-skeleton.c driver as a base. It's fairly limited
+and it's buffering abilities may need beefing up, depending on your requirements, but it's
+written to be easy to understand.
+

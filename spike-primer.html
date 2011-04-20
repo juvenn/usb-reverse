@@ -1,0 +1,165 @@
+
+<html>
+<head>
+<title>Spike Output Primer</title>
+</head>
+
+<body stylesrc="../index.html" bgcolor="#00CC99">
+<h2>&quot;Spike&quot; Output Primer</h2>
+<p><i>spike</i> boils down the output from USBSnoopy so that only the data
+transfers on the USB are shown. This makes it easier to read the data phases of
+the transactions, which make protocol decoding somewhat less frustrating. Of
+course, you still need to know something about the USB 1.1 specification to read
+it.</p>
+<p>Output is broken up into four basic columns:</p>
+<table border="0" cellspacing="0" cellpadding="3">
+  <tr>
+    <th nowrap colspan="2" bgcolor="#008080"><font color="#00CC99">Transaction</font></th>
+    <th nowrap bgcolor="#008080">&nbsp;</th>
+    <th nowrap bgcolor="#008080">&nbsp;</th>
+  </tr>
+  <tr>
+    <th nowrap bgcolor="#008080"><font color="#00CC99">Count</font></th>
+    <th nowrap bgcolor="#008080"><font color="#00CC99">Type</font></th>
+    <th nowrap bgcolor="#008080"><font color="#00CC99">Hex Data</font></th>
+    <th nowrap bgcolor="#008080"><font color="#00CC99">ASCII Representation</font></th>
+  </tr>
+  <tr>
+    <td nowrap valign="top" align="left">
+      <pre>000001</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>CS</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>      43 17 00 00 00 00 0a 00</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre></pre>
+    </td>
+  </tr>
+  <tr>
+    <td nowrap valign="top" align="left">
+      <pre></pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>C&gt;</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>0000: 0000 a0ea 0400 3f0e 0000</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>......?...</pre>
+    </td>
+  </tr>
+  <tr>
+    <td nowrap valign="top" align="left">
+      <pre>000002</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>CS</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>      c3 f0 00 00 00 00 01 00</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre></pre>
+    </td>
+  </tr>
+  <tr>
+    <td nowrap valign="top" align="left">
+      <pre></pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>C&lt;</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>0000: 00  </pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>.</pre>
+    </td>
+  </tr>
+  <tr>
+    <td nowrap valign="top" align="left">
+      <pre>000003</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>CS</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>      43 01 00 00 00 00 00 00</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre></pre>
+    </td>
+  </tr>
+  <tr>
+    <td nowrap valign="top" align="left">
+      <pre>000004</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>B&lt;</pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>0000: 00fd 44c9 5f59 0044 4a0b 0ba7 7d45 0b57 
+0010: 4100 0056 0202 0000 0043 7265 6174 6976 
+0020: 6520 4a75 6b65 426f 7800 0000 0000 0000 
+0030: 0000 0000 0000 0000 0001  </pre>
+    </td>
+    <td nowrap valign="top" align="left">
+      <pre>..D._Y.DJ...}E.W
+A..V.....Creativ
+e JukeBox.......
+..........</pre>
+    </td>
+  </tr>
+  <tr>
+    <td nowrap valign="top" align="left" colspan="4">
+<hr noshade color="#008080" size="4">
+    </td>
+  </tr>
+</table>
+<p>The <b>transaction count</b> column designates when a new transaction has
+started (and when the previous one has completed). A transaction is defined as a
+setup packet followed by it's data phase, or a bulk or interrupt data transfer.
+Note that this is <i>not</i> an offical USB term: it's merely an arbitrary
+grouping of USB packets chosen to make the <i>spike</i> output easier to read.</p>
+<p>The <b>transaction type</b> column defines what type of packet is being sent,
+and in which direction. A &quot;C&quot; is used to refer to a packer on the
+control pipe, while a &quot;B&quot; represents a transaction on a bulk data pipe
+or an interrupt pipe. The second character represents the direction of the data
+transfer for the data phase of the request, or for a bulk data transfer. A
+&quot;&lt;&quot; means data is flowing from the USB device to the host, while a
+&quot;&gt;&quot; represents a transfer from the host to the USB device. An
+&quot;S&quot; designates a setup packet on the control pipe. Setup packets are
+always sent from the host to the USB device.</p>
+<p>The <b>hex data</b> column shows the actual data being sent. For a setup
+packet, the eight bytes are shown in the order defined by the USB 1.1
+specification. For a data transfer, the bytes are &quot;compacted&quot; together
+to tighten up the output. For example, the hex string</p>
+<blockquote>
+  <pre>00 00 56 02 02 00 43 5A 3E 01</pre>
+</blockquote>
+<p>would be represented as</p>
+<blockquote>
+  <pre>0000 5602 0200 435A 3E01</pre>
+</blockquote>
+<p>in order to save space. A byte offset in the data packet precedes each output
+line.</p>
+<p>The final column shows an <b>ASCII representation</b> of the packet data. Non
+printable characters are represented as a period.</p>
+
+
+</body>
+</html>
+
+
+<!--
+     FILE ARCHIVED ON 10:39:26 Jun 29, 2001 AND RETRIEVED FROM THE
+     INTERNET ARCHIVE ON 5:08:02 Apr 19, 2011.
+     JAVASCRIPT APPENDED BY WAYBACK MACHINE, COPYRIGHT INTERNET ARCHIVE.
+
+     ALL OTHER CONTENT MAY ALSO BE PROTECTED BY COPYRIGHT (17 U.S.C.
+     SECTION 108(a)(3)).
+-->
